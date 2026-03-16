@@ -6,6 +6,7 @@ import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, getD
 import { Report, CorruptionType } from '../types';
 import { DEFAULT_CORRUPTION_TYPES } from '../constants';
 import { Trash2, Edit, LogOut, Plus, Settings, FileText, Check, X, AlertTriangle } from 'lucide-react';
+import { getCorruptionIcon } from '../lib/corruptionIcons';
 
 export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null);
@@ -259,7 +260,7 @@ export default function AdminDashboard() {
             {corruptionTypes.map(type => (
               <div key={type.id || type.name} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{type.icon}</span>
+                  <span className="text-gray-600">{getCorruptionIcon(type.name, 24)}</span>
                   <div>
                     <p className="font-bold text-gray-900">{type.name}</p>
                     <div className="w-4 h-1 rounded-full" style={{ backgroundColor: type.color }}></div>

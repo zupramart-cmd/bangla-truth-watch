@@ -1,26 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, orderBy, onSnapshot, limit } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { Report } from '../types';
 import ReportCard from '../components/ReportCard';
 import { DEFAULT_CORRUPTION_TYPES } from '../constants';
-import { TrendingUp, Clock, MapPin as MapPinIcon, Search, AlertTriangle, BarChart3, Banknote, Shield, Landmark, GraduationCap, Hospital, Building2, Home, Stamp, Zap, Droplets, Bus, Scale, FolderOpen } from 'lucide-react';
+import { getCorruptionIcon } from '../lib/corruptionIcons';
+import { TrendingUp, Clock, MapPin as MapPinIcon, Search, AlertTriangle, BarChart3, ChevronDown } from 'lucide-react';
 
-const CORRUPTION_ICONS: Record<string, React.ReactNode> = {
-  'ঘুষ': <Banknote size={14} />,
-  'পুলিশ': <Shield size={14} />,
-  'রাজনৈতিক': <Landmark size={14} />,
-  'শিক্ষা': <GraduationCap size={14} />,
-  'স্বাস্থ্যসেবা': <Hospital size={14} />,
-  'সরকারি অফিস': <Building2 size={14} />,
-  'ভূমি অফিস': <Home size={14} />,
-  'পাসপোর্ট অফিস': <Stamp size={14} />,
-  'বিদ্যুৎ বিভাগ': <Zap size={14} />,
-  'ওয়াসা/পানি': <Droplets size={14} />,
-  'পরিবহন': <Bus size={14} />,
-  'বিচার বিভাগ': <Scale size={14} />,
-  'অন্যান্য': <FolderOpen size={14} />,
-};
+const ITEMS_PER_PAGE = 10;
 
 export default function FeedPage() {
   const [reports, setReports] = useState<Report[]>([]);
@@ -28,18 +15,25 @@ export default function FeedPage() {
   const [filterType, setFilterType] = useState('all');
   const [sortBy, setSortBy] = useState<'latest' | 'trending' | 'near'>('latest');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(50));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(collection(db, 'reports'), (snapshot) => {
       const reportsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Report[];
-      setReports(reportsData);
+      const approved = reportsData.filter(r => (r as any).status === 'approved');
+      approved.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setReports(approved);
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'reports');
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterType, sortBy]);
 
   const getFilteredReports = () => {
     let filtered = [...reports];
@@ -66,12 +60,14 @@ export default function FeedPage() {
   };
 
   const filteredReports = getFilteredReports();
+  const totalPages = Math.ceil(filteredReports.length / ITEMS_PER_PAGE);
+  const paginatedReports = filteredReports.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
   const todayReports = reports.filter(r => new Date(r.date).toDateString() === new Date().toDateString()).length;
+  const selectedType = DEFAULT_CORRUPTION_TYPES.find(t => t.name === filterType);
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Hero Stats Banner - Red only */}
-      <div className="mx-4 mt-4 mb-4 bg-red-600 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+      <div className="mx-4 mt-4 mb-4 bg-red-600 rounded-2xl p-5 shadow-lg relative overflow-hidden animate-fade-in">
         <div className="absolute inset-0 bg-gradient-to-br from-red-700/50 to-red-500/50" />
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -96,39 +92,34 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Corruption Type Filter - with Lucide icons */}
-      <div className="px-4 mb-3">
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+      <div className="sticky top-[56px] z-30 bg-gray-50 px-4 pt-3 pb-3 space-y-3">
+        <div className="relative">
           <button
-            onClick={() => setFilterType('all')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all active:scale-95 border ${
-              filterType === 'all'
-                ? 'bg-red-600 text-white border-red-600 shadow-md shadow-red-200'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-red-200'
-            }`}
+            onClick={() => setShowDropdown(!showDropdown)}
+            className="w-full flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm active:scale-[0.99] transition-all"
           >
-            <AlertTriangle size={14} /> সব
+            <div className="flex items-center gap-2">
+              {filterType === 'all' ? <AlertTriangle size={16} className="text-red-500" /> : getCorruptionIcon(filterType, 16)}
+              <span>{filterType === 'all' ? 'সব ধরন' : filterType}</span>
+            </div>
+            <ChevronDown size={18} className={`text-gray-400 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
           </button>
-          {DEFAULT_CORRUPTION_TYPES.map(type => (
-            <button
-              key={type.id}
-              onClick={() => setFilterType(type.name)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all active:scale-95 border ${
-                filterType === type.name
-                  ? 'text-white border-transparent shadow-md'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-              }`}
-              style={filterType === type.name ? { backgroundColor: type.color, borderColor: type.color } : {}}
-            >
-              {CORRUPTION_ICONS[type.name] || <FolderOpen size={14} />}
-              <span>{type.name}</span>
-            </button>
-          ))}
+          {showDropdown && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto animate-scale-in">
+              <button onClick={() => { setFilterType('all'); setShowDropdown(false); }}
+                className={`w-full flex items-center gap-2 px-4 py-3 text-sm font-bold text-left transition-colors ${filterType === 'all' ? 'bg-red-50 text-red-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                <AlertTriangle size={16} /> সব ধরন
+              </button>
+              {DEFAULT_CORRUPTION_TYPES.map(type => (
+                <button key={type.id} onClick={() => { setFilterType(type.name); setShowDropdown(false); }}
+                  className={`w-full flex items-center gap-2 px-4 py-3 text-sm font-bold text-left transition-colors ${filterType === type.name ? 'bg-red-50 text-red-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                  {getCorruptionIcon(type.name, 16)} {type.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Sort Buttons */}
-      <div className="px-4 mb-4">
         <div className="flex gap-2">
           <button onClick={() => setSortBy('latest')} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${sortBy === 'latest' ? 'bg-gray-900 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200'}`}>
             <Clock size={14} /> সাম্প্রতিক
@@ -142,20 +133,50 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Reports - 2 columns on desktop */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
           <p className="text-gray-500 font-medium">লোড হচ্ছে...</p>
         </div>
-      ) : filteredReports.length > 0 ? (
-        <div className="md:px-4 md:grid md:grid-cols-2 md:gap-4">
-          {filteredReports.map(report => (
-            <ReportCard key={report.id} report={report} />
-          ))}
-        </div>
+      ) : paginatedReports.length > 0 ? (
+        <>
+          <div className="md:px-4 md:grid md:grid-cols-2 md:gap-4">
+            {paginatedReports.map((report, i) => (
+              <div key={report.id} className="animate-fade-in" style={{ animationDelay: `${i * 50}ms` }}>
+                <ReportCard report={report} />
+              </div>
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 py-6 px-4">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                className="px-4 py-2 rounded-xl text-sm font-bold bg-white border border-gray-200 disabled:opacity-40 active:scale-95 transition-all">
+                পূর্ববর্তী
+              </button>
+              <div className="flex gap-1">
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  let page: number;
+                  if (totalPages <= 5) page = i + 1;
+                  else if (currentPage <= 3) page = i + 1;
+                  else if (currentPage >= totalPages - 2) page = totalPages - 4 + i;
+                  else page = currentPage - 2 + i;
+                  return (
+                    <button key={page} onClick={() => setCurrentPage(page)}
+                      className={`w-10 h-10 rounded-xl text-sm font-bold transition-all active:scale-95 ${currentPage === page ? 'bg-red-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200'}`}>
+                      {page}
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                className="px-4 py-2 rounded-xl text-sm font-bold bg-white border border-gray-200 disabled:opacity-40 active:scale-95 transition-all">
+                পরবর্তী
+              </button>
+            </div>
+          )}
+        </>
       ) : (
-        <div className="text-center py-20 mx-4 bg-white rounded-2xl border border-dashed border-gray-300">
+        <div className="text-center py-20 mx-4 bg-white rounded-2xl border border-dashed border-gray-300 animate-fade-in">
           <Search size={48} className="mx-auto text-gray-300 mb-4" />
           <p className="text-gray-500 font-medium">কোনো রিপোর্ট পাওয়া যায়নি।</p>
         </div>

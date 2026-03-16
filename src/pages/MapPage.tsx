@@ -6,21 +6,13 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { Report } from '../types';
 import { DEFAULT_CORRUPTION_TYPES } from '../constants';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Navigation, Plus, Info, X, Banknote, Shield, Landmark, GraduationCap, Hospital, Building2, Home, Stamp, Zap, Droplets, Bus, Scale, FolderOpen } from 'lucide-react';
+import { Navigation, Plus, Info, X } from 'lucide-react';
+import { getCorruptionIcon, getCorruptionIconSvgString } from '../lib/corruptionIcons';
 
-// Fix Leaflet default icon
 const markerIcon = 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png';
 const markerShadow = 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: markerIcon, shadowUrl: markerShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
-
-// Icon map for filter bar (Lucide icons as text for buttons only)
-const CORRUPTION_ICON_NAMES: Record<string, string> = {
-  'ঘুষ': '💰', 'পুলিশ': '👮', 'রাজনৈতিক': '🏛', 'শিক্ষা': '🎓',
-  'স্বাস্থ্যসেবা': '🏥', 'সরকারি অফিস': '🏢', 'ভূমি অফিস': '🏡',
-  'পাসপোর্ট অফিস': '🛂', 'বিদ্যুৎ বিভাগ': '⚡', 'ওয়াসা/পানি': '🚰',
-  'পরিবহন': '🚌', 'বিচার বিভাগ': '⚖️', 'অন্যান্য': '📁',
-};
 
 function LocationMarker({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) {
   const [position, setPosition] = useState<L.LatLng | null>(null);
@@ -124,23 +116,20 @@ export default function MapPage() {
   }, [filteredReports]);
 
   const getMarkerIcon = (report: Report) => {
-    const type = DEFAULT_CORRUPTION_TYPES.find(t => t.name === report.corruptionType);
-    const icon = type?.icon || '📍';
-
-    // Corruption app color scheme: dark red for verified, amber for needs proof, gray-green for false
-    let color = '#6b7280'; // neutral gray for no votes
+    const svgIcon = getCorruptionIconSvgString(report.corruptionType);
+    let color = '#6b7280';
     const total = report.votesTrue + report.votesFalse + report.votesNeedEvidence;
     if (total > 0) {
-      if (report.votesTrue > report.votesFalse && report.votesTrue > report.votesNeedEvidence) color = '#dc2626'; // red-600 - verified corruption
-      else if (report.votesNeedEvidence > report.votesTrue && report.votesNeedEvidence > report.votesFalse) color = '#d97706'; // amber-600 - needs proof
-      else if (report.votesFalse > report.votesTrue && report.votesFalse > report.votesNeedEvidence) color = '#059669'; // emerald-600 - likely false
+      if (report.votesTrue > report.votesFalse && report.votesTrue > report.votesNeedEvidence) color = '#dc2626';
+      else if (report.votesNeedEvidence > report.votesTrue && report.votesNeedEvidence > report.votesFalse) color = '#d97706';
+      else if (report.votesFalse > report.votesTrue && report.votesFalse > report.votesNeedEvidence) color = '#059669';
     }
 
     return L.divIcon({
       html: `
         <div class="marker-pin-wrapper">
           <div class="marker-pin" style="background: linear-gradient(135deg, ${color}, ${color}dd);"></div>
-          <div class="marker-icon-inner">${icon}</div>
+          <div class="marker-icon-inner">${svgIcon}</div>
         </div>
       `,
       className: 'custom-div-icon',
@@ -165,7 +154,6 @@ export default function MapPage() {
 
   return (
     <div className="relative h-full w-full">
-      {/* Filter Bar - using Lucide icons for non-map elements */}
       <div className="absolute top-4 left-4 right-16 z-10 flex gap-2 overflow-x-auto pb-2 no-scrollbar">
         <button onClick={() => setSelectedType('All')}
           className={`px-4 py-2 rounded-full font-bold text-xs whitespace-nowrap shadow-md transition-all ${selectedType === 'All' ? 'bg-red-600 text-white' : 'bg-white text-gray-700'}`}>
@@ -174,12 +162,12 @@ export default function MapPage() {
         {DEFAULT_CORRUPTION_TYPES.map(type => (
           <button key={type.id} onClick={() => setSelectedType(type.name)}
             className={`px-4 py-2 rounded-full font-bold text-xs whitespace-nowrap shadow-md transition-all flex items-center gap-1.5 ${selectedType === type.name ? 'bg-red-600 text-white' : 'bg-white text-gray-700'}`}>
-            <span>{type.icon}</span><span>{type.name}</span>
+            {getCorruptionIcon(type.name, 14)}
+            <span>{type.name}</span>
           </button>
         ))}
       </div>
 
-      {/* Summary - corruption-appropriate colors */}
       <div className="absolute top-16 left-4 z-10 bg-white/95 backdrop-blur-sm p-3 rounded-2xl shadow-lg border border-gray-200 flex gap-4">
         <div className="text-center"><p className="text-[10px] font-bold text-gray-500 uppercase">মোট</p><p className="text-sm font-black text-gray-900">{summary.total}</p></div>
         <div className="w-px bg-gray-200"></div>
@@ -220,25 +208,22 @@ export default function MapPage() {
         ))}
       </MapContainer>
 
-      {/* Right side controls */}
       <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
-        <button onClick={locateUser} className="bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-blue-600 transition-colors">
+        <button onClick={locateUser} className="bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-blue-600 transition-colors active:scale-95">
           <Navigation size={20} />
         </button>
-        <button onClick={() => setShowLegend(!showLegend)} className="bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-red-600 transition-colors">
+        <button onClick={() => setShowLegend(!showLegend)} className="bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-red-600 transition-colors active:scale-95">
           <Info size={20} />
         </button>
       </div>
 
-      {/* Floating plus button */}
       <button onClick={() => navigate('/add')}
         className="fixed bottom-24 left-4 z-50 bg-red-600 text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform active:scale-95">
         <Plus size={28} />
       </button>
 
-      {/* Legend */}
       {showLegend && (
-        <div className="absolute bottom-24 left-4 right-16 z-10 bg-white p-4 rounded-2xl shadow-xl border border-gray-100 max-h-[40vh] overflow-y-auto">
+        <div className="absolute bottom-24 left-4 right-16 z-10 bg-white p-4 rounded-2xl shadow-xl border border-gray-100 max-h-[40vh] overflow-y-auto animate-scale-in">
           <div className="flex justify-between items-center mb-3">
             <h3 className="font-bold text-gray-900">ম্যাপ লিজেন্ড</h3>
             <button onClick={() => setShowLegend(false)} className="text-gray-400"><X size={18} /></button>
@@ -258,7 +243,10 @@ export default function MapPage() {
               <p className="text-xs font-bold text-gray-500 uppercase">দুর্নীতির ধরন</p>
               <div className="grid grid-cols-2 gap-2">
                 {DEFAULT_CORRUPTION_TYPES.map(type => (
-                  <div key={type.id} className="flex items-center gap-2 text-xs"><span className="text-lg">{type.icon}</span><span className="text-gray-700">{type.name}</span></div>
+                  <div key={type.id} className="flex items-center gap-2 text-xs text-gray-700">
+                    {getCorruptionIcon(type.name, 16)}
+                    <span>{type.name}</span>
+                  </div>
                 ))}
               </div>
             </div>
