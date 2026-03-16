@@ -4,6 +4,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { DEFAULT_CORRUPTION_TYPES, IMGBB_API_KEY } from '../constants';
 import { MapPin, Link as LinkIcon, Navigation, CheckCircle, AlertCircle, X, Camera, Send } from 'lucide-react';
+import { getCorruptionIcon } from '../lib/corruptionIcons';
 import L from 'leaflet';
 
 export default function AddReportPage() {
@@ -90,6 +91,12 @@ export default function AddReportPage() {
           mapPickerInstance.current.setView([lat, lng], 15);
           markerRef.current.setLatLng([lat, lng]);
         }
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=bn`)
+          .then(r => r.json())
+          .then(data => {
+            if (data.display_name) setFormData(prev => ({ ...prev, locationName: data.display_name }));
+          })
+          .catch(() => {});
       });
     }
   };
@@ -103,10 +110,8 @@ export default function AddReportPage() {
     throw new Error('Image upload failed');
   };
 
-  // Validation for each step
   const validateStep = (s: number): boolean => {
     const newErrors: Record<string, string> = {};
-
     if (s === 1) {
       if (!formData.corruptionType) newErrors.corruptionType = 'দুর্নীতির ধরন নির্বাচন করুন';
       if (!formData.title.trim()) newErrors.title = 'শিরোনাম আবশ্যক';
@@ -114,18 +119,15 @@ export default function AddReportPage() {
       if (!formData.description.trim()) newErrors.description = 'বিবরণ আবশ্যক';
       if (formData.description.trim().length < 20) newErrors.description = 'বিবরণ কমপক্ষে ২০ অক্ষর হতে হবে';
     }
-
     if (s === 2) {
       if (!formData.locationName.trim()) newErrors.locationName = 'অবস্থানের নাম আবশ্যক';
       if (formData.latitude === 0 && formData.longitude === 0) newErrors.location = 'GPS বা ম্যাপ থেকে অবস্থান নির্বাচন করুন';
     }
-
     if (s === 3) {
       if (images.length === 0 && externalLinks.every(l => !l.trim())) {
         newErrors.evidence = 'কমপক্ষে একটি ছবি বা লিঙ্ক প্রদান করুন';
       }
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -140,7 +142,6 @@ export default function AddReportPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep(1) || !validateStep(2) || !validateStep(3)) return;
-
     setIsSubmitting(true);
     setStatus(null);
     try {
@@ -152,10 +153,11 @@ export default function AddReportPage() {
         votesTrue: 0,
         votesFalse: 0,
         votesNeedEvidence: 0,
+        status: 'pending',
         createdAt: serverTimestamp(),
       });
       setStatus({ type: 'success', message: 'রিপোর্ট সফলভাবে জমা দেওয়া হয়েছে!' });
-      setTimeout(() => navigate('/'), 2000);
+      setTimeout(() => navigate('/feed'), 2000);
     } catch (error) {
       console.error(error);
       setStatus({ type: 'error', message: 'রিপোর্ট জমা দিতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।' });
@@ -168,12 +170,11 @@ export default function AddReportPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 pb-28">
-      <div className="mb-6">
+      <div className="mb-6 animate-fade-in">
         <h1 className="text-2xl font-black text-gray-900">রিপোর্ট করুন</h1>
         <p className="text-gray-400 text-sm mt-1">আপনার তথ্য সম্পূর্ণ গোপন থাকবে</p>
       </div>
 
-      {/* Step indicator */}
       <div className="flex items-center gap-1 mb-6">
         {[1, 2, 3].map(s => (
           <button key={s} type="button" onClick={() => goToStep(s)}
@@ -186,16 +187,15 @@ export default function AddReportPage() {
       </div>
 
       {status && (
-        <div className={`p-4 rounded-xl mb-4 flex items-center gap-3 ${status.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+        <div className={`p-4 rounded-xl mb-4 flex items-center gap-3 animate-fade-in ${status.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
           {status.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
           <p className="font-bold text-sm">{status.message}</p>
         </div>
       )}
 
       <form onSubmit={handleSubmit}>
-        {/* Step 1 */}
         {step === 1 && (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-fade-in">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1.5">
                 দুর্নীতির ধরন <span className="text-red-500">*</span>
@@ -204,10 +204,10 @@ export default function AddReportPage() {
                 {DEFAULT_CORRUPTION_TYPES.map(type => (
                   <button key={type.id} type="button"
                     onClick={() => { setFormData({ ...formData, corruptionType: type.name }); setErrors(prev => ({ ...prev, corruptionType: '' })); }}
-                    className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all text-center ${
+                    className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all text-center active:scale-95 ${
                       formData.corruptionType === type.name ? 'border-red-500 bg-red-50 shadow-sm' : 'border-gray-100 bg-white hover:border-gray-200'
                     }`}>
-                    <span className="text-xl mb-1">{type.icon}</span>
+                    <div className="mb-1 text-gray-600">{getCorruptionIcon(type.name, 22)}</div>
                     <span className="text-[10px] font-bold text-gray-700 leading-tight">{type.name}</span>
                   </button>
                 ))}
@@ -241,9 +241,8 @@ export default function AddReportPage() {
           </div>
         )}
 
-        {/* Step 2 */}
         {step === 2 && (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-fade-in">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1.5">
                 অবস্থানের নাম <span className="text-red-500">*</span>
@@ -257,7 +256,7 @@ export default function AddReportPage() {
             <div className="grid grid-cols-2 gap-3">
               <button type="button" onClick={getCurrentLocation}
                 className="flex items-center justify-center gap-2 bg-gray-900 text-white py-3 rounded-xl font-bold text-xs active:scale-95 transition-all">
-                <Navigation size={14} /> জিপিএস
+                <Navigation size={14} /> জিপিএস সনাক্ত
               </button>
               <button type="button" onClick={() => setShowMapPicker(!showMapPicker)}
                 className="flex items-center justify-center gap-2 bg-red-600 text-white py-3 rounded-xl font-bold text-xs active:scale-95 transition-all">
@@ -291,9 +290,8 @@ export default function AddReportPage() {
           </div>
         )}
 
-        {/* Step 3 */}
         {step === 3 && (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-fade-in">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-2">
                 প্রমাণের ছবি <span className="text-red-500">*</span>

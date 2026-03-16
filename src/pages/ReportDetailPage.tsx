@@ -17,6 +17,7 @@ import 'swiper/css/pagination';
 import L from 'leaflet';
 import { generateNickname } from '../lib/nicknames';
 import { getViralShareMessage } from '../lib/shareMessages';
+import { getCorruptionIcon } from '../lib/corruptionIcons';
 
 export default function ReportDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -89,10 +90,10 @@ export default function ReportDetailPage() {
       const votedReports = JSON.parse(localStorage.getItem('votedReports') || '{}');
       votedReports[id] = true;
       localStorage.setItem('votedReports', JSON.stringify(votedReports));
-      triggerToast('✅ আপনার ভোট সফলভাবে জমা হয়েছে!');
+      triggerToast('আপনার ভোট সফলভাবে জমা হয়েছে!');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `reports/${id}`);
-      triggerToast('❌ ভোট দিতে সমস্যা হয়েছে!');
+      triggerToast('ভোট দিতে সমস্যা হয়েছে!');
     }
   };
 
@@ -134,7 +135,7 @@ export default function ReportDetailPage() {
     }
     return (
       <div className="relative w-full h-full cursor-pointer group" onClick={() => setSelectedMedia(link)}>
-        <img src={link} alt={`Evidence ${index + 1}`} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+        <img src={link} alt={`Evidence ${index + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
         <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="bg-black/50 p-3 rounded-full text-white backdrop-blur-sm"><Maximize2 size={20} /></div>
         </div>
@@ -150,7 +151,7 @@ export default function ReportDetailPage() {
       navigator.share({ title: report.title, text: viralText, url: shareUrl });
     } else {
       navigator.clipboard.writeText(`${viralText}\n${shareUrl}`);
-      triggerToast('📋 লিঙ্ক কপি হয়েছে! শেয়ার করুন!');
+      triggerToast('লিঙ্ক কপি হয়েছে!');
     }
   };
 
@@ -180,22 +181,19 @@ export default function ReportDetailPage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-24 relative">
-      {/* Toast */}
       {showToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-gray-900 text-white text-sm font-bold px-6 py-3 rounded-full shadow-2xl animate-bounce">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-green-600 text-white text-sm font-bold px-6 py-3 rounded-full shadow-2xl animate-fade-in">
           {showToast}
         </div>
       )}
 
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+      <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={24} /></button>
         <h1 className="text-lg font-black text-gray-900 truncate px-4">রিপোর্ট বিস্তারিত</h1>
         <button onClick={shareReport} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><Share2 size={24} /></button>
       </div>
 
-      {/* Anonymous header with nickname */}
-      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between animate-fade-in">
         <div className="flex items-center gap-2.5">
           <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center">
             <UserX size={20} className="text-red-500" />
@@ -205,12 +203,14 @@ export default function ReportDetailPage() {
             <p className="text-[11px] text-gray-400 flex items-center gap-1"><Calendar size={12} /> {new Date(report.date).toLocaleDateString('bn-BD')}</p>
           </div>
         </div>
-        <span className="px-3 py-1 bg-red-50 text-red-600 text-xs font-black rounded-full uppercase">{report.corruptionType}</span>
+        <span className="px-3 py-1 bg-red-50 text-red-600 text-xs font-black rounded-full flex items-center gap-1">
+          {getCorruptionIcon(report.corruptionType, 14)}
+          {report.corruptionType}
+        </span>
       </div>
 
-      {/* Media */}
       {mediaLinks.length > 0 && (
-        <div className="w-full aspect-[4/3] bg-gray-100">
+        <div className="w-full aspect-[16/9] bg-gray-100 animate-fade-in">
           <Swiper modules={[Autoplay, SwiperNavigation, Pagination]} navigation pagination={{ clickable: true }} autoplay={{ delay: 4000, disableOnInteraction: true }} className="h-full w-full">
             {mediaLinks.map((link, idx) => (
               <SwiperSlide key={idx}>{renderMedia(link, idx)}</SwiperSlide>
@@ -225,7 +225,12 @@ export default function ReportDetailPage() {
           <MapPin size={16} className="mr-1 text-red-400" /><span>{report.locationName}</span>
         </div>
 
-        {/* Voting */}
+        {(report as any).actionStatus && (
+          <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl animate-fade-in">
+            <p className="text-sm font-bold text-blue-700">পদক্ষেপ: {(report as any).actionStatus}</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-2 mb-4">
           <button onClick={() => handleVote('votesTrue')} disabled={!canVote}
             className={`flex flex-col items-center py-3 rounded-xl border transition-all active:scale-95 ${canVote ? 'bg-green-50 border-green-100 text-green-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
@@ -241,19 +246,16 @@ export default function ReportDetailPage() {
           </button>
         </div>
 
-        {/* Share */}
         <div className="flex gap-4 mb-6 pb-4 border-b border-gray-100">
           <button onClick={shareReport} className="text-gray-400 hover:text-red-600 transition-colors"><Share2 size={20} /></button>
           <button onClick={() => navigate(`/map?id=${report.id}`)} className="text-gray-400 hover:text-red-600 transition-colors"><MapPin size={20} /></button>
         </div>
 
-        {/* Description */}
-        <div className="mb-6">
+        <div className="mb-6 animate-fade-in">
           <h3 className="text-lg font-black text-gray-900 mb-3">বিবরণ</h3>
           <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{report.description}</p>
         </div>
 
-        {/* Verification stats */}
         <div className="bg-white rounded-2xl p-5 mb-6 border border-gray-100 shadow-sm">
           <h3 className="text-base font-black text-gray-900 mb-4">যাচাইকরণ অবস্থা</h3>
           <div className="space-y-4">
@@ -272,7 +274,6 @@ export default function ReportDetailPage() {
           </div>
         </div>
 
-        {/* Map */}
         <div className="mb-6">
           <h3 className="text-base font-black text-gray-900 mb-3">অবস্থান</h3>
           <div className="rounded-2xl overflow-hidden border border-gray-200 h-48 relative">
@@ -284,7 +285,6 @@ export default function ReportDetailPage() {
           </div>
         </div>
 
-        {/* External links */}
         {otherLinks.length > 0 && (
           <div className="mb-6">
             <h3 className="text-base font-black text-gray-900 mb-3">আরও প্রমাণ</h3>
@@ -301,7 +301,6 @@ export default function ReportDetailPage() {
         )}
       </div>
 
-      {/* Media modal */}
       {selectedMedia && (
         <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4" onClick={() => setSelectedMedia(null)}>
           <button onClick={() => setSelectedMedia(null)} className="absolute top-6 right-6 text-white hover:scale-110 transition-transform z-10"><X size={32} /></button>

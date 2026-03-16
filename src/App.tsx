@@ -14,7 +14,8 @@ export default function App() {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<FeedPage />} />
+          <Route path="/" element={<MapPage />} />
+          <Route path="/feed" element={<FeedPage />} />
           <Route path="/map" element={<MapPage />} />
           <Route path="/add" element={<AddReportPage />} />
           <Route path="/info" element={<InfoPage />} />
