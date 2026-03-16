@@ -6,6 +6,7 @@ import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, getD
 import { Report, CorruptionType } from '../types';
 import { DEFAULT_CORRUPTION_TYPES } from '../constants';
 import { Trash2, Edit, LogOut, Plus, Settings, FileText, Check, X, AlertTriangle } from 'lucide-react';
+import { getCorruptionIcon } from '../lib/corruptionIcons';
 
 export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null);
